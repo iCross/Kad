@@ -166,7 +166,7 @@ jobs:
             -DCMAKE_INSTALL_PREFIX="${target}" \
             -DCMAKE_BUILD_TYPE=MinSizeRel ../
 
-        cmake --build ./ -- --jobs $(sysctl -n hw.ncpu)
+        cmake --build ./ --verbose -- --jobs $(sysctl -n hw.ncpu)
         cmake --install ./
 
         tar --create --file=- "${target}" | xz --compress -9 > "${OUTPUT_DIRECTORY}/${target}.tar.xz"
