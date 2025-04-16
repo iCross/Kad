@@ -128,7 +128,15 @@ jobs:
             cmake --build ./ -- --jobs 1>/dev/null
             cmake --install ./ 1>/dev/null
 
-            tar --create --file=- "${target}" |  xz --compress -9 > "${OUTPUT_DIRECTORY}/${target}.tar.xz"
+            # Create the output tarball
+            mkdir -p "${OUTPUT_DIRECTORY}"
+            tar --create --file=- "${target}" | xz --compress -9 > "${OUTPUT_DIRECTORY}/${target}.tar.xz"
+
+            # Verify the tarball was created
+            if [ ! -f "${OUTPUT_DIRECTORY}/${target}.tar.xz" ]; then
+                echo "Error: Failed to create ${OUTPUT_DIRECTORY}/${target}.tar.xz"
+                exit 1
+            fi
 
             rm --force --recursive ./*
         done
@@ -188,7 +196,14 @@ jobs:
         cmake --install ./
 
         # Create the output tarball
+        mkdir -p "${OUTPUT_DIRECTORY}"
         tar --create --file=- "${target}" | xz --compress -9 > "${OUTPUT_DIRECTORY}/${target}.tar.xz"
+
+        # Verify the tarball was created
+        if [ ! -f "${OUTPUT_DIRECTORY}/${target}.tar.xz" ]; then
+            echo "Error: Failed to create ${OUTPUT_DIRECTORY}/${target}.tar.xz"
+            exit 1
+        fi
 
     - name: Upload macOS artifact
       uses: actions/upload-artifact@main
