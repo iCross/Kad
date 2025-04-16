@@ -6,30 +6,32 @@ on:
         - '**'
 
 jobs:
-  build:
+  build-cross:
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
+      group: ${{ github.workflow }}-cross-${{ github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@main
       with:
         submodules: true
+        fetch-depth: 0
     - name: Free up some space
-      run: | 
+      run: |
         rm --recursive --force '/opt' || true
     - name: Install dependencies
-      run: | 
-        sudo apt-get install --assume-yes golang-go
+      run: |
+        sudo apt-get update
+        sudo apt-get install --assume-yes golang-go jq
     - name: Setup Linux cross-compiler
-      run: | 
+      run: |
         declare -r SPHYNX_TAG="$(jq --raw-output '.tag_name' <<< "$(curl --connect-timeout '10' --retry '15' --retry-all-errors --fail --silent --url 'https://api.github.com/repos/AmanoTeam/Sphynx/releases/latest')")"
         declare -r SPHYNX_TARBALL='/tmp/toolchain.tar.xz'
         declare -r SPHYNX_URL="https://github.com/AmanoTeam/Sphynx/releases/download/${SPHYNX_TAG}/x86_64-unknown-linux-gnu.tar.xz"
-        
+
         curl --connect-timeout '10' --retry '15' --retry-all-errors --fail --silent --location --url "${SPHYNX_URL}" --output "${SPHYNX_TARBALL}"
         tar --directory="$(dirname "${SPHYNX_TARBALL}")" --extract --file="${SPHYNX_TARBALL}"
-        
+
         echo 'SPHYNX_HOME=/tmp/sphynx' >> "${GITHUB_ENV}"
         echo '/tmp/sphynx/bin' >> "${GITHUB_PATH}"
     - name: Setup Android cross-compiler
@@ -47,24 +49,24 @@ jobs:
         declare -r RAIDEN_TAG="$(jq --raw-output '.tag_name' <<< "$(curl --connect-timeout '10' --retry '15' --retry-all-errors --fail --silent --url 'https://api.github.com/repos/AmanoTeam/Raiden/releases/latest')")"
         declare -r RAIDEN_TARBALL='/tmp/toolchain.tar.xz'
         declare -r RAIDEN_URL="https://github.com/AmanoTeam/Raiden/releases/download/${RAIDEN_TAG}/x86_64-unknown-linux-gnu.tar.xz"
-        
+
         curl --connect-timeout '10' --retry '15' --retry-all-errors --fail --silent --location --url "${RAIDEN_URL}" --output "${RAIDEN_TARBALL}"
         tar --directory="$(dirname "${RAIDEN_TARBALL}")" --extract --file="${RAIDEN_TARBALL}"
-        
+
         echo 'RAIDEN_HOME=/tmp/raiden' >> "${GITHUB_ENV}"
         echo '/tmp/raiden/bin' >> "${GITHUB_PATH}"
     - name: Setup Tizen cross-compiler
-      run: | 
+      run: |
         declare -r NUL_TAG="$(jq --raw-output '.tag_name' <<< "$(curl --connect-timeout '10' --retry '15' --retry-all-errors --fail --silent --url 'https://api.github.com/repos/AmanoTeam/Nul/releases/latest')")"
         declare -r NUL_TARBALL='/tmp/toolchain.tar.xz'
         declare -r NUL_URL="https://github.com/AmanoTeam/Nul/releases/download/${NUL_TAG}/x86_64-unknown-linux-gnu.tar.xz"
-        
+
         curl --connect-timeout '10' --retry '15' --retry-all-errors --fail --silent --location --url "${NUL_URL}" --output "${NUL_TARBALL}"
         tar --directory="$(dirname "${NUL_TARBALL}")" --extract --file="${NUL_TARBALL}"
-        
+
         echo 'NUL_HOME=/tmp/nul' >> "${GITHUB_ENV}"
         echo '/tmp/nul/bin' >> "${GITHUB_PATH}"
-    - name: Build with CMake
+    - name: Build with CMake (Cross-Compile)
       run: |
         declare -r targets=(
             arm-tizenwearable-linux-gnueabi
@@ -88,54 +90,202 @@ jobs:
             x86_64-linux-gnu
             x86_64-unknown-linux-musl
         )
-        
+
         declare -r OUTPUT_DIRECTORY="$(realpath './output')"
-        
+
         mkdir --parent "${OUTPUT_DIRECTORY}"
         mkdir build && cd build
-        
+
         for target in "${targets[@]}"; do
             echo "Building for ${target}"
 
             declare KAD_ENABLE_LTO=ON
             declare OPENSSL_NO_ASM=OFF
-            
+
             if [[ "${target}" == arm-tizen* ]]; then
                 OPENSSL_NO_ASM=ON
             fi
-            
+
+            GO_EXEC_PATH=$(which go || echo '/usr/bin/go')
+
             cmake -Wno-dev \
                 -DKAD_ENABLE_LTO="${KAD_ENABLE_LTO}" \
-                -DCMAKE_TOOLCHAIN_FILE="./.github/workflows/cmake_toolchains/${target}.cmake" \
+                -DCMAKE_TOOLCHAIN_FILE="../.github/workflows/cmake_toolchains/${target}.cmake" \
                 -DCMAKE_INSTALL_PREFIX="${target}" \
                 -DPERL_EXECUTABLE='/usr/bin/perl' \
-                -DGO_EXECUTABLE='/usr/bin/go' \
+                -DGO_EXECUTABLE="${GO_EXEC_PATH}" \
                 -DOPENSSL_NO_ASM="${OPENSSL_NO_ASM}" \
-                -DCMAKE_BUILD_TYPE=MinSizeRel ../ 1>/dev/null
-            
+                -DCMAKE_BUILD_TYPE=MinSizeRel \
+                -DCMAKE_C_FLAGS_MINSIZEREL="-Os -Wno-error=unused-but-set-variable" \
+                -DCMAKE_CXX_FLAGS_MINSIZEREL="-Os -Wno-error=unused-but-set-variable" \
+                -DCMAKE_SHARED_LINKER_FLAGS_MINSIZEREL="-Wl,-headerpad_max_install_names" \
+                -DCMAKE_EXE_LINKER_FLAGS_MINSIZEREL="-Wl,-headerpad_max_install_names" \
+                -DCMAKE_MODULE_LINKER_FLAGS_MINSIZEREL="-Wl,-headerpad_max_install_names" \
+                -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ../ 1>/dev/null
+
             cmake --build ./ -- --jobs 1>/dev/null
             cmake --install ./ 1>/dev/null
-                
-            tar --create --file=- "${target}" |  xz --compress -9 > "${OUTPUT_DIRECTORY}/${target}.tar.xz"
-            
+
+            mkdir -p "${OUTPUT_DIRECTORY}"
+            tar --create --file=- "${target}" | xz --compress -9 > "${OUTPUT_DIRECTORY}/${target}.tar.xz"
+
+            if [ ! -f "${OUTPUT_DIRECTORY}/${target}.tar.xz" ]; then
+                echo "Error: Failed to create ${OUTPUT_DIRECTORY}/${target}.tar.xz"
+                exit 1
+            fi
+
             rm --force --recursive ./*
         done
-    - name: Upload artifact
+    - name: Upload cross-compile artifact
       uses: actions/upload-artifact@main
       with:
+        name: cross-compile-output
         path: ./output
+
+  build-macos:
+    concurrency:
+      group: ${{ github.workflow }}-macos-${{ github.ref }}
+      cancel-in-progress: true
+    runs-on: macos-14
+    steps:
+    - uses: actions/checkout@main
+      with:
+        submodules: true
+        fetch-depth: 0
+    - name: Install dependencies (Go)
+      env:
+        HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
+        HOMEBREW_NO_ENV_HINTS: 1
+      run: |
+        set -o pipefail
+        brew update || true
+        brew install --quiet go xz 2>&1 | grep -v '^Warning: These files were overwritten during the'
+    - name: Build with CMake (macOS arm64)
+      run: |
+        declare -r target="aarch64-apple-darwin"
+        declare -r OUTPUT_DIRECTORY="${GITHUB_WORKSPACE}/output" # Use absolute path
+
+        mkdir -p "${OUTPUT_DIRECTORY}" # Create using absolute path
+        mkdir build && cd build
+
+        echo "Building for ${target}"
+
+        declare KAD_ENABLE_LTO=OFF
+        declare GO_EXEC_PATH=$(which go)
+
+        cmake -Wno-dev \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DKAD_ENABLE_LTO="${KAD_ENABLE_LTO}" \
+            -DGO_EXECUTABLE="${GO_EXEC_PATH}" \
+            -DCMAKE_INSTALL_PREFIX="${target}" \
+            -DCMAKE_BUILD_TYPE=MinSizeRel \
+            -DCMAKE_C_FLAGS_MINSIZEREL="-Os -Wno-error=unused-but-set-variable" \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ../
+
+        JOBS=4
+        echo "Using ${JOBS} parallel jobs for build"
+
+        chmod +x ../fixbuild.sh
+        ../fixbuild.sh ./ ${JOBS}
+
+        cmake --install ./
+
+        tar --create --file=- "${target}" | xz --compress -9 > "${OUTPUT_DIRECTORY}/${target}.tar.xz"
+
+        if [ ! -f "${OUTPUT_DIRECTORY}/${target}.tar.xz" ]; then
+            echo "Error: Failed to create ${OUTPUT_DIRECTORY}/${target}.tar.xz"
+            exit 1
+        fi
+
+    - name: Upload macOS artifact
+      uses: actions/upload-artifact@main
+      with:
+        name: macos-output
+        path: output
+        if-no-files-found: error
+
+  build-docker:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: [build-cross] # Depends on cross-compilation artifacts
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/docker' || startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@main
+        with:
+          submodules: recursive # Ensure recursive checkout for submodules
+          fetch-depth: 0 # Fetch all history for git operations if needed by build
+
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        id: buildx
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/kad
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha # Add SHA tag
+            type=raw,value=latest,enable={{is_default_branch}} # Add latest tag for default branch
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6,linux/ppc64le
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [build-cross, build-macos, build-docker]
+    if: startsWith(github.event.head_commit.message, 'Bump version')
+    steps:
     - name: Get tag name for release
-      if: startsWith(github.event.head_commit.message, 'Bump version')
-      run: echo "VERSION_TAG=${COMMIT_MESSAGE/* }" >> "${GITHUB_ENV}"
+      id: get_tag
+      run: echo "VERSION_TAG=${COMMIT_MESSAGE/* }" >> $GITHUB_OUTPUT
       env:
         COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+    - name: Download all artifacts
+      uses: actions/download-artifact@main
+      with:
+        path: release-assets
+    - name: Verify artifacts
+      run: |
+        for target in arm-tizenwearable-linux-gnueabi arm-tizenmobile-linux-gnueabi arm-tizeniot-linux-gnueabi arm-tizeniotheadless-linux-gnueabi arm-linux-gnueabi arm-linux-gnueabihf arm-unknown-linux-musleabihf armv7a-linux-androideabi aarch64-tizeniot-linux-gnu aarch64-linux-android aarch64-linux-gnu aarch64-unknown-linux-musl i386-tizenmobile-linux-gnueabi i386-tizenwearable-linux-gnueabi i386-unknown-linux-musl i686-linux-android i686-linux-gnu x86_64-linux-android x86_64-linux-gnu x86_64-unknown-linux-musl; do
+          if [ ! -f "release-assets/cross-compile-output/${target}.tar.xz" ]; then
+            echo "Error: Missing cross-compile artifact for ${target}"
+            exit 1
+          fi
+        done
+
+        if [ ! -f "release-assets/macos-output/aarch64-apple-darwin.tar.xz" ]; then
+          echo "Error: Missing macOS artifact"
+          exit 1
+        fi
     - name: Create release
-      if: startsWith(github.event.head_commit.message, 'Bump version')
       uses: softprops/action-gh-release@master
       with:
-        tag_name: v${{ env.VERSION_TAG }}
-        name: Kad v${{ env.VERSION_TAG }}
-        files: ./output/*
+        tag_name: v${{ steps.get_tag.outputs.VERSION_TAG }}
+        name: Kad v${{ steps.get_tag.outputs.VERSION_TAG }}
+        files: release-assets/**/*
         draft: true
         prerelease: false
         fail_on_unmatched_files: true
