@@ -112,3 +112,4 @@ To circumvent this, you need to disable SSL certificate validation in your HTTP 
 - Windows is not supported for now ([#1](https://github.com/AmanoTeam/Kad/issues/1))
 - Only supports impersonating Chrome, Edge and Safari
 
+
