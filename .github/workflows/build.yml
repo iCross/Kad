@@ -156,7 +156,7 @@ jobs:
 
         echo "Building for ${target}"
 
-        declare KAD_ENABLE_LTO=ON
+        declare KAD_ENABLE_LTO=OFF
         declare GO_EXEC_PATH=$(which go)
 
         cmake -Wno-dev \
