@@ -159,12 +159,18 @@ jobs:
         declare KAD_ENABLE_LTO=OFF
         declare GO_EXEC_PATH=$(which go)
 
+        # Get existing C flags for MinSizeRel and append the warning suppression
+        # Note: This assumes the project doesn't heavily override CMAKE_C_FLAGS_MINSIZEREL elsewhere in a conflicting way
+        # A more robust solution might involve modifying the top-level CMakeLists.txt
+        EXTRA_C_FLAGS="-Wno-error=unused-but-set-variable"
+
         cmake -Wno-dev \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DKAD_ENABLE_LTO="${KAD_ENABLE_LTO}" \
             -DGO_EXECUTABLE="${GO_EXEC_PATH}" \
             -DCMAKE_INSTALL_PREFIX="${target}" \
-            -DCMAKE_BUILD_TYPE=MinSizeRel ../
+            -DCMAKE_BUILD_TYPE=MinSizeRel \
+            -DCMAKE_C_FLAGS_MINSIZEREL="${CMAKE_C_FLAGS_MINSIZEREL} ${EXTRA_C_FLAGS}" ../
 
         cmake --build ./ --verbose -- -j1
         cmake --install ./
