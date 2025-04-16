@@ -24,6 +24,21 @@ cmake --build ./build
 cmake --install ./build
 ```
 
+## Building and Running with Docker
+
+You can also build and run Kad using Docker.
+
+1.  **Build the Docker image:**
+    ```bash
+    docker build -t kad .
+    ```
+
+2.  **Run the container:**
+    ```bash
+    # This will run the proxy on port 4000 on your host machine
+    docker run -p 4000:4000 kad
+    ```
+
 ## Usage
 
 Available options:
