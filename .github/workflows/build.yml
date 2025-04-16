@@ -117,7 +117,13 @@ jobs:
                 -DPERL_EXECUTABLE='/usr/bin/perl' \
                 -DGO_EXECUTABLE="${GO_EXEC_PATH}" \
                 -DOPENSSL_NO_ASM="${OPENSSL_NO_ASM}" \
-                -DCMAKE_BUILD_TYPE=MinSizeRel ../ 1>/dev/null
+                -DCMAKE_BUILD_TYPE=MinSizeRel \
+                -DCMAKE_C_FLAGS_MINSIZEREL="-Os -Wno-error=unused-but-set-variable" \
+                -DCMAKE_CXX_FLAGS_MINSIZEREL="-Os -Wno-error=unused-but-set-variable" \
+                -DCMAKE_SHARED_LINKER_FLAGS_MINSIZEREL="-Wl,-headerpad_max_install_names" \
+                -DCMAKE_EXE_LINKER_FLAGS_MINSIZEREL="-Wl,-headerpad_max_install_names" \
+                -DCMAKE_MODULE_LINKER_FLAGS_MINSIZEREL="-Wl,-headerpad_max_install_names" \
+                -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ../ 1>/dev/null
 
             cmake --build ./ -- --jobs 1>/dev/null
             cmake --install ./ 1>/dev/null
@@ -159,22 +165,29 @@ jobs:
         declare KAD_ENABLE_LTO=OFF
         declare GO_EXEC_PATH=$(which go)
 
-        # Get existing C flags for MinSizeRel and append the warning suppression
-        # Note: This assumes the project doesn't heavily override CMAKE_C_FLAGS_MINSIZEREL elsewhere in a conflicting way
-        # A more robust solution might involve modifying the top-level CMakeLists.txt
-        EXTRA_C_FLAGS="-Wno-error=unused-but-set-variable"
-
+        # Configure the project
         cmake -Wno-dev \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DKAD_ENABLE_LTO="${KAD_ENABLE_LTO}" \
             -DGO_EXECUTABLE="${GO_EXEC_PATH}" \
             -DCMAKE_INSTALL_PREFIX="${target}" \
             -DCMAKE_BUILD_TYPE=MinSizeRel \
-            -DCMAKE_C_FLAGS_MINSIZEREL="${CMAKE_C_FLAGS_MINSIZEREL} ${EXTRA_C_FLAGS}" ../
+            -DCMAKE_C_FLAGS_MINSIZEREL="-Os -Wno-error=unused-but-set-variable" \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ../
 
-        cmake --build ./ --verbose -- -j1
+        # Determine optimal number of jobs (use 4 as default)
+        # This can be adjusted based on the runner's capabilities
+        JOBS=4
+        echo "Using ${JOBS} parallel jobs for build"
+
+        # Make the fixbuild script executable and run it with parallel jobs
+        chmod +x ../fixbuild.sh
+        ../fixbuild.sh ./ ${JOBS}
+
+        # Install the built artifacts
         cmake --install ./
 
+        # Create the output tarball
         tar --create --file=- "${target}" | xz --compress -9 > "${OUTPUT_DIRECTORY}/${target}.tar.xz"
 
     - name: Upload macOS artifact
