@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
 
-project(
-	Kad
-	VERSION 0.2
+project(Kad
+	VERSION 0.3
 	DESCRIPTION "Kad is a simple HTTP proxy server that forwards all requests through curl-impersonate"
 	HOMEPAGE_URL "https://github.com/AmanoTeam/Kad"
 	LANGUAGES C
@@ -59,7 +58,7 @@ file(WRITE "${CMAKE_SOURCE_DIR}/submodules/zlib/CMakeLists.txt" "${FILE_CONTENTS
 
 if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl/.patched")
 	message("-- Patching cURL")
-	
+
 	execute_process(
 		COMMAND patch
 		--directory=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl
@@ -67,13 +66,13 @@ if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl/.patched")
 		--input=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl-impersonate/chrome/patches/curl-impersonate.patch
 		COMMAND_ERROR_IS_FATAL ANY
 	)
-	
+
 	file(WRITE "${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl/.patched" "")
 endif()
 
 if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/submodules/boringssl/.patched")
 	message("-- Patching BoringSSL")
-	
+
 	execute_process(
 		COMMAND patch
 		--directory=${CMAKE_CURRENT_SOURCE_DIR}/submodules/boringssl
@@ -81,7 +80,7 @@ if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/submodules/boringssl/.patched")
 		--input=${CMAKE_CURRENT_SOURCE_DIR}/submodules/curl-impersonate/chrome/patches/boringssl-old-ciphers.patch
 		COMMAND_ERROR_IS_FATAL ANY
 	)
-	
+
 	file(WRITE "${CMAKE_CURRENT_SOURCE_DIR}/submodules/boringssl/.patched" "")
 endif()
 
@@ -156,11 +155,11 @@ foreach(target zlib crypto ssl nghttp2 brotlidec c-ares)
 		OUTPUT ${target}
 		COMMAND ${CMAKE_COMMAND} --build ./ --target ${target}
 	)
-	
+
 	add_custom_target(
 		"ensure_${target}" ALL DEPENDS "${target}"
 	)
-	
+
 	add_dependencies(
 		libcurl
 		"ensure_${target}"
@@ -495,7 +494,7 @@ add_executable(
 	src/threads.c
 )
 
-if (KAD_DISABLE_CERTIFICATE_VALIDATION) 
+if (KAD_DISABLE_CERTIFICATE_VALIDATION)
 	target_compile_definitions(
 		kad
 		PRIVATE
@@ -513,10 +512,10 @@ endif()
 
 if (KAD_ENABLE_LTO)
 	set(KAD_HAS_LTO OFF)
-	
+
 	include(CheckIPOSupported)
 	check_ipo_supported(RESULT KAD_HAS_LTO LANGUAGES C)
-	
+
 	if (KAD_HAS_LTO)
 		foreach(target kad bearssl libcurl zlib crypto ssl nghttp2 brotlicommon brotlidec c-ares)
 			set_target_properties(

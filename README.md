@@ -1,17 +1,20 @@
 # Kad
 
+[![Build Status](https://github.com/iCross/Kad/actions/workflows/build.yml/badge.svg)](https://github.com/AmanoTeam/Kad/actions/workflows/build.yml)
+[![Docker Pulls](https://img.shields.io/docker/pulls/lukastsai/kad)](https://hub.docker.com/r/lukastsai/kad)
+
 Kad is a simple HTTP proxy server that forwards all requests through curl-impersonate.
 
 ## Installation
 
-You can obtain precompiled binaries from the [releases](https://github.com/AmanoTeam/Kad/releases) page.
+You can obtain precompiled binaries from the [releases](https://github.com/iCross/Kad/releases) page.
 
 ## Building
 
 Clone this repository and fetch all submodules
 
 ```bash
-git clone --depth='1' 'https://github.com/AmanoTeam/Kad.git'
+git clone --depth='1' 'https://github.com/iCross/Kad.git'
 cd Kad
 git submodule update --init --depth='1'
 ```
@@ -24,11 +27,27 @@ cmake --build ./build
 cmake --install ./build
 ```
 
+## Building and Running with Docker
+
+You can run Kad via Docker in two ways: pull the official image from Docker Hub, or build the image locally.
+
+1.  **Pull and run the official image:**
+    ```bash
+    docker pull lukastsai/kad:latest
+    docker run --rm -p 4000:4000 lukastsai/kad:latest
+    ```
+
+2.  **Build and run the Docker image locally:**
+    ```bash
+    docker build -t kad .
+    docker run --rm -p 4000:4000 kad
+    ```
+
 ## Usage
 
 Available options:
 
-```
+```bash
 $ kad --help
 usage: kad [-h] [-v] [--host HOST] [--port PORT] [--target TARGET]
 
@@ -46,10 +65,9 @@ Note, options that take an argument require a equal sign. E.g. --host=HOST
 
 You can start a server with all default options by simply running `kad`:
 
-```
+```bash
 $ kad
 Starting server at http://127.0.0.1:4000 (pid = 478)
-
 ```
 
 ## Examples
@@ -96,4 +114,3 @@ To circumvent this, you need to disable SSL certificate validation in your HTTP 
 
 - Windows is not supported for now ([#1](https://github.com/AmanoTeam/Kad/issues/1))
 - Only supports impersonating Chrome, Edge and Safari
-

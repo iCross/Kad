@@ -1,0 +1,11 @@
+.aider*
+
+# Build artifacts
+build/
+output/
+docker-context/
+
+# Local configuration or temporary files
+*.local
+*.swp
+*~
