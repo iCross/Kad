@@ -1,6 +1,6 @@
 # Kad
 
-[![Build Status](https://github.com/iCross/Kad/actions/workflows/build.yml/badge.svg)](https://github.com/AmanoTeam/Kad/actions/workflows/build.yml)
+[![Build Status](https://github.com/iCross/Kad/actions/workflows/build.yml/badge.svg)](https://github.com/iCross/Kad/actions/workflows/build.yml)
 [![Docker Pulls](https://img.shields.io/docker/pulls/lukastsai/kad)](https://hub.docker.com/r/lukastsai/kad)
 
 Kad is a simple HTTP proxy server that forwards all requests through curl-impersonate.
